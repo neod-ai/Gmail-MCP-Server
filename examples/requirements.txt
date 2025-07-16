@@ -1,0 +1,8 @@
+# Dependencias para los ejemplos de cliente
+# Instalar con: pip install -r requirements.txt
+
+# MCP SDK para Python
+model-context-protocol>=0.1.0
+
+# Librerías adicionales para ejemplos
+asyncio-extras>=1.3.0

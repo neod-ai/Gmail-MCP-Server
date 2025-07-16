@@ -6,11 +6,15 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 
 # Install dependencies
-RUN npm ci
+RUN npm ci --omit=dev --ignore-scripts
 
-# Copy source files
+# Copy source files and build configuration
 COPY tsconfig.json ./
 COPY src ./src
+COPY gcp-oauth.keys.json ./
+
+# Install dev dependencies for build
+RUN npm install typescript --save-dev
 
 # Build the application
 RUN npm run build
@@ -20,6 +24,8 @@ RUN mkdir -p /gmail-server
 
 # Set environment variables
 ENV NODE_ENV=production
+ENV USE_USER_CREDENTIALS=true
+ENV DEBUG_USER_AUTH=false
 
 # Expose port for OAuth flow
 EXPOSE 3000
