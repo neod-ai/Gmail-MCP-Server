@@ -107,7 +107,7 @@ function extractEmailContent(messagePart: GmailMessagePart): EmailContent {
 async function loadCredentials() {
     try {
         // Create config directory if it doesn't exist
-        if (!process.env.GMAIL_OAUTH_PATH && !CREDENTIALS_PATH &&!fs.existsSync(CONFIG_DIR)) {
+        if (!fs.existsSync(CONFIG_DIR)) {
             fs.mkdirSync(CONFIG_DIR, { recursive: true });
         }
 
@@ -444,12 +444,9 @@ async function main() {
                         });
                         
                         return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `Email sent successfully with ID: ${result.data.id}`,
-                                },
-                            ],
+                            messageId: result.data.id,
+                            message: `Email sent successfully`,
+                            action: 'sent'
                         };
                     } else {
                         // For drafts with attachments, use the raw message
@@ -470,12 +467,9 @@ async function main() {
                             },
                         });
                         return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `Email draft created successfully with ID: ${response.data.id}`,
-                                },
-                            ],
+                            draftId: response.data.id,
+                            message: `Email draft created successfully`,
+                            action: 'drafted'
                         };
                     }
                 } else {
@@ -508,27 +502,21 @@ async function main() {
                             requestBody: messageRequest,
                         });
                         return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `Email sent successfully with ID: ${response.data.id}`,
-                                },
-                            ],
+                            messageId: response.data.id,
+                            message: `Email sent successfully`,
+                            action: 'sent'
                         };
                     } else {
                         const response = await gmail.users.drafts.create({
                             userId: 'me',
                             requestBody: {
                                 message: messageRequest,
-                        },
+                            },
                         });
                         return {
-                            content: [
-                                {
-                                    type: "text",
-                                    text: `Email draft created successfully with ID: ${response.data.id}`,
-                                },
-                            ],
+                            draftId: response.data.id,
+                            message: `Email draft created successfully`,
+                            action: 'drafted'
                         };
                     }
                 }
@@ -1093,12 +1081,124 @@ async function main() {
     server.connect(transport);
 }
 
-main().catch((error) => {
-    console.error('Server error:', error);
-    process.exit(1);
-});
+// Only run main() if this file is executed directly (not imported as module)
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((error) => {
+        console.error('Server error:', error);
+        process.exit(1);
+    });
+}
 
 // Export individual tool functions for HTTP server use
+export async function handleEmailAction(action: "send" | "draft", validatedArgs: any, gmail: any) {
+    let message: string;
+    
+    try {
+        // Check if we have attachments
+        if (validatedArgs.attachments && validatedArgs.attachments.length > 0) {
+            // Use Nodemailer to create properly formatted RFC822 message
+            message = await createEmailWithNodemailer(validatedArgs);
+            
+            if (action === "send") {
+                const encodedMessage = Buffer.from(message).toString('base64')
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=+$/, '');
+
+                const result = await gmail.users.messages.send({
+                    userId: 'me',
+                    requestBody: {
+                        raw: encodedMessage,
+                        ...(validatedArgs.threadId && { threadId: validatedArgs.threadId })
+                    }
+                });
+                
+                return {
+                    messageId: result.data.id,
+                    message: `Email sent successfully`,
+                    action: 'sent'
+                };
+            } else {
+                // For drafts with attachments, use the raw message
+                const encodedMessage = Buffer.from(message).toString('base64')
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=+$/, '');
+                
+                const messageRequest = {
+                    raw: encodedMessage,
+                    ...(validatedArgs.threadId && { threadId: validatedArgs.threadId })
+                };
+                
+                const response = await gmail.users.drafts.create({
+                    userId: 'me',
+                    requestBody: {
+                        message: messageRequest,
+                    },
+                });
+                return {
+                    draftId: response.data.id,
+                    message: `Email draft created successfully`,
+                    action: 'drafted'
+                };
+            }
+        } else {
+            // For emails without attachments, use the existing simple method
+            message = createEmailMessage(validatedArgs);
+            
+            const encodedMessage = Buffer.from(message).toString('base64')
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+
+            // Define the type for messageRequest
+            interface GmailMessageRequest {
+                raw: string;
+                threadId?: string;
+            }
+
+            const messageRequest: GmailMessageRequest = {
+                raw: encodedMessage,
+            };
+
+            // Add threadId if specified
+            if (validatedArgs.threadId) {
+                messageRequest.threadId = validatedArgs.threadId;
+            }
+
+            if (action === "send") {
+                const response = await gmail.users.messages.send({
+                    userId: 'me',
+                    requestBody: messageRequest,
+                });
+                return {
+                    messageId: response.data.id,
+                    message: `Email sent successfully`,
+                    action: 'sent'
+                };
+            } else {
+                const response = await gmail.users.drafts.create({
+                    userId: 'me',
+                    requestBody: {
+                        message: messageRequest,
+                    },
+                });
+                return {
+                    draftId: response.data.id,
+                    message: `Email draft created successfully`,
+                    action: 'drafted'
+                };
+            }
+        }
+    } catch (error: any) {
+        // Log attachment-related errors for debugging
+        if (validatedArgs.attachments && validatedArgs.attachments.length > 0) {
+            console.error(`Failed to send email with ${validatedArgs.attachments.length} attachments:`, error.message);
+        }
+        throw error;
+    }
+}
+
 export async function sendEmailTool(args: any, gmail: any) {
     const validatedArgs = SendEmailSchema.parse(args);
     return await handleEmailAction("send", validatedArgs, gmail);

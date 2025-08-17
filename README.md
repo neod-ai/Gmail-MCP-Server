@@ -2,8 +2,41 @@
 
 A Model Context Protocol (MCP) server for Gmail integration in Claude Desktop with auto authentication support. This server enables AI assistants to manage Gmail through natural language interactions.
 
+**✅ Compatible with Standard MCP Protocol** - Implements consistent endpoints for seamless integration.
+
 ![](https://badge.mcpx.dev?type=server 'MCP Server')
 [![smithery badge](https://smithery.ai/badge/@gongrzhe/server-gmail-autoauth-mcp)](https://smithery.ai/server/@gongrzhe/server-gmail-autoauth-mcp)
+
+## 🚀 Standard MCP Endpoints
+
+This server implements the standard MCP protocol for consistent integration:
+
+- **`GET /tools`** - Complete tools documentation with JSON schemas
+- **`POST /api/mcp`** - Main MCP endpoint for tool execution  
+- **`GET /`** - Server information page
+- **`GET /health`** - Health check endpoint
+
+### Quick Testing
+```bash
+# Get all tools with complete schemas
+curl -X GET https://your-server.com/tools
+
+# Execute a tool via MCP protocol
+curl -X POST https://your-server.com/api/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "tools/call", 
+    "params": {
+      "name": "send-email",
+      "arguments": {
+        "to": ["recipient@example.com"],
+        "subject": "Hello",
+        "body": "Test message",
+        "_userCredentials": {...}
+      }
+    }
+  }'
+```
 
 
 ## Features
@@ -27,6 +60,58 @@ A Model Context Protocol (MCP) server for Gmail integration in Claude Desktop wi
 - Simple OAuth2 authentication flow with auto browser launch
 - Support for both Desktop and Web application credentials
 - Global credential storage for convenience
+
+## 🔧 MCP Integration & Standards
+
+This server follows the **Standard MCP Protocol** for consistency across all MCP servers:
+
+### Standard Endpoints
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/tools` | GET | Complete API documentation with JSON schemas |
+| `/api/mcp` | POST | Main MCP endpoint for tool execution |
+| `/` | GET | Server information and usage guide |
+| `/health` | GET | Health check for monitoring |
+
+### Tool Discovery
+Get complete tool documentation:
+```bash
+curl https://your-server.com/tools
+```
+
+Returns detailed schemas for all 14 available tools including:
+- Parameter descriptions and types
+- Required vs optional fields  
+- `_userCredentials` authentication structure
+- Usage examples and constraints
+
+### MCP Execution
+Execute tools via standard MCP protocol:
+```bash
+curl -X POST https://your-server.com/api/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "tools/call",
+    "params": {
+      "name": "tool-name", 
+      "arguments": {
+        "param": "value",
+        "_userCredentials": {
+          "access_token": "...",
+          "refresh_token": "...",
+          "scope": "https://www.googleapis.com/auth/gmail.modify",
+          "token_type": "Bearer"
+        }
+      }
+    }
+  }'
+```
+
+**Benefits of Standard MCP:**
+- 🔍 **Self-documenting** - Discover APIs via `/tools`
+- 🔄 **Consistent** - Same pattern across all MCP servers  
+- ⚡ **Fast Integration** - Auto-discovery of capabilities
+- 🐛 **Easy Debugging** - Standard structure simplifies troubleshooting
 
 ## Installation & Authentication
 
@@ -181,7 +266,9 @@ This approach allows authentication flows to work properly in environments where
 
 ## Available Tools
 
-The server provides the following tools that can be used through Claude Desktop:
+**📋 Standard MCP Access:** All tools are available via both the standard MCP endpoint (`POST /api/mcp`) and individual REST endpoints for backward compatibility.
+
+The server provides the following tools that can be used through Claude Desktop or any MCP-compatible client:
 
 ### 1. Send Email (`send_email`)
 
